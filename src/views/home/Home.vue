@@ -6,20 +6,32 @@
         <div>购物街</div>
       </template>
     </nav-bar>
+    <tab-control
+      :titles="['流行','新款','精选']"
+      class="tab_control"
+      @currutClick="currutClick"
+      ref="tab_control2"
+      v-show="isTabcontrol"
+    ></tab-control>
     <scroll
       class="content"
       ref="scroll"
       :probe-type="3"
       @scroll="BackTopscroll"
-      :pull-up-load="true"
+      :pullUpLoad="true"
       @pullingUp="loadmore"
     >
       <!-- 轮播图 -->
-      <home-swiper :banners="banners"></home-swiper>
+      <home-swiper :banners="banners" @swiperImageLoad="swiperImageLoad"></home-swiper>
       <!-- 推荐页 -->
       <home-recommends :recommends="recommends"></home-recommends>
       <home-feature></home-feature>
-      <tab-control :titles="['流行','新款','精选']" class="tab_control" @currutClick="currutClick"></tab-control>
+      <tab-control
+        :titles="['流行','新款','精选']"
+        class="tab_control"
+        @currutClick="currutClick"
+        ref="tab_control1"
+      ></tab-control>
       <!-- 商品 -->
       <goods-list :Goods="showGoods"></goods-list>
     </scroll>
@@ -32,14 +44,14 @@ import NavBar from "@/components/common/navbar/NavBar";
 import Scroll from "@/components/common/scroll/Scroll";
 import TabControl from "@/components/content/tabControl/TabControl";
 import GoodsList from "@/components/content/goods/GoodsList";
-import BackTop from "@/components/content/backtop/BackTop";
 
 import HomeSwiper from "./childComps/HomeSwiper";
 import HomeRecommends from "./childComps/HomeRecommends";
 import HomeFeature from "./childComps/HomeFeature";
 
 import { getHomeMultiData, getHomeGoods } from "@/network/home";
-import { watch } from "vue";
+import { debounce } from "@/common/utils";
+import { itemListenerMixin, backTopMixin } from "@/common/mixin";
 export default {
   name: "home",
   components: {
@@ -50,11 +62,9 @@ export default {
     TabControl,
     GoodsList,
     Scroll,
-    BackTop,
   },
   data() {
     return {
-      // result: null,
       banners: [],
       recommends: [],
       Goods: {
@@ -63,14 +73,29 @@ export default {
         sell: { page: 0, list: [] },
       },
       currutGoods: "pop",
-      isShowBackTop: false,
+      tabOffSetTop: 0,
+      isTabcontrol: false,
+      saveY: 0,
     };
   },
+  mixins: [itemListenerMixin, backTopMixin],
   created() {
     this.getHomeMultiData();
     this.getHomeGoods("pop");
     this.getHomeGoods("new");
     this.getHomeGoods("sell");
+  },
+  mounted() {},
+  activated() {
+    this.$refs.scroll.scrollTo(0, this.saveY, 0);
+    this.$refs.scroll.refresh();
+  },
+  deactivated() {
+    // 1.保存Y值
+    this.saveY = this.$refs.scroll.getcurrentY();
+    // console.log(this.saveY);
+    // 2.取消全局事件监听
+    this.$bus.$off("imgload", this.itemImgListener);
   },
   methods: {
     // 组件方法
@@ -87,19 +112,20 @@ export default {
           this.currutGoods = "sell";
           break;
       }
-    },
-    backClick() {
-      this.$refs.scroll.scrollTo(0, 0);
+      this.$refs.tab_control1.currutIndex = index;
+      this.$refs.tab_control2.currutIndex = index;
     },
     BackTopscroll(position) {
-      // console.log(position);
-      this.isShowBackTop = -position.y > 1000;
+      this.listenerShowBackTop(position);
+      this.isTabcontrol = -position.y > this.tabOffSetTop;
     },
     loadmore() {
-      // console.log("222");
       this.getHomeGoods(this.currutGoods);
+    },
+    swiperImageLoad() {
+      this.tabOffSetTop = this.$refs.tab_control1.$el.offsetTop;
 
-      this.$refs.scroll.scroll.refresh();
+      // console.log(this.$refs.tab_control.$el.offsetTop);
     },
     // 网络请求相关方法
     getHomeMultiData() {
